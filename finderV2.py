@@ -4,13 +4,18 @@ from pathlib import Path
 from typing import List
 import re
 
-# Dialogue Finder V1
+# Convert over the V2 of the program and then add on the scanner fixes, as well as the character name lookup.
+# Consider names like graha tia
+
 
 CHAR_NAME = "Cid"  # Change the name that you wish to look up here.
+DIALOGUE_COLUMN = 2
+SPEAKER_COLUMN = 1
+
 useScanner = True
 total = 0
-isInFileCount = 0
 fullAbsoluteListOfFiles = []
+isInFileCount = 0
 basePath = os.path.abspath('')
 
 
@@ -36,7 +41,7 @@ def extended_readCSVFiles(csvFileList: List[str]) -> str:
 
                 collectAllNameInstances(currentCSVContents, fullListOfNameInstances)
                 total = len(fullListOfNameInstances)
-                result = formatAllNameInstances(fullListOfNameInstances)
+                result = format_all_name_instances(fullListOfNameInstances)
 
     except Exception as e:
         print("Failure inside of the method for iterating through the string array of csv names.")
@@ -45,65 +50,28 @@ def extended_readCSVFiles(csvFileList: List[str]) -> str:
     return result
 
 
-def formatAllNameInstances(fullListOfNameInstances: List[str]) -> str:
-    character_is_speaking = []
-    characterIsMentioned = []
-    formatter = []
+def format_all_name_instances(full_list_of_name_instances):
+    # for v2
+    cutscene_occurrence = []
+    character_is_mentioned = []
 
-    for name in fullListOfNameInstances:
-        if containsSpeakerText(CHAR_NAME, name):
-            character_is_speaking.append(name)
-        elif containsCharacterName(CHAR_NAME, name):
-            characterIsMentioned.append(name)
+    formatter = ""
 
-    formatter.append("Character is speaking:\n")
-    for name in character_is_speaking:
-        formatter.append(name + "\n\n")
-    formatter.append("\n")
-    formatter.append("Character is mentioned:\n")
-    for name in characterIsMentioned:
-        formatter.append(name + "\n\n")
+    for name_instance in full_list_of_name_instances:
+        if "VOICEMAN" in name_instance:
+            cutscene_occurrence.append(name_instance)
+        else:
+            character_is_mentioned.append(name_instance)
 
-    return ''.join(formatter)
+    for cutscene in cutscene_occurrence:
+        formatter += " " + cutscene + "\n"
 
+    formatter += "\n"
 
-def addUnderscoresAroundCharactername(character: str) -> str:
-    return "_" + character + "_"
+    for character in character_is_mentioned:
+        formatter += " " + character + "\n"
 
-
-def addUnderscoreBeforeCharactername(character: str) -> str:
-    return "_" + character
-
-
-def containsSpeakerText(character: str, stringinput: str) -> bool:
-    character = character.upper()
-    return addUnderscoresAroundCharactername(character) in stringinput or addUnderscoreBeforeCharactername(
-        character) in stringinput
-
-
-def containsCharacterName(character: str, stringinput: str) -> bool:
-    # Escapes the special characters in the input string
-    escapedName = re.escape(character)
-
-    # Make sure it matches the name surrounded by optional punctuation and whitespace
-    pattern = r'(?i)(?:\b|\W|^)' + escapedName + r'(?:\b|\W|$)'
-
-    # Compile the pattern into a regular expression object
-    regex = re.compile(pattern)
-
-    # Match that against the sentence
-    match = regex.search(stringinput)
-    if match:
-        # If the name is found in the sentence, check if any words contain the name
-        words = re.findall(r'\w+', stringinput)
-        for word in words:
-            if word.lower() == character.lower():
-                return True
-
-        return True
-    else:
-        # If the name is not found in the sentence, return false
-        return False
+    return formatter
 
 
 def containsCaseInsensitive(s, s2):
@@ -115,36 +83,58 @@ def containsCaseInsensitive(s, s2):
 def collectAllNameInstances(csvContents, target):
     alreadyDetected = False
     global isInFileCount
-    for row in csvContents:
-        for column in row:
-            if containsCaseInsensitive(CHAR_NAME, column):
-                if not alreadyDetected:
-                    isInFileCount += 1
-                alreadyDetected = True
-                textFormatter = row[1] + " -- " + row[2]  # access row elements by index
-                target.append(textFormatter)
+    for j in range(len(csvContents)):
+        if containsCaseInsensitive(CHAR_NAME, csvContents[j][1]):
+            if not alreadyDetected:
+                isInFileCount += 1
+            alreadyDetected = True
+            currentCsvNameInstances = []
+            textFormatter = ""
+
+            while "<If(PlayerParameter(4))>her<Else/>his</If>" in csvContents[j][DIALOGUE_COLUMN]:
+                csvContents[j][DIALOGUE_COLUMN] = csvContents[j][DIALOGUE_COLUMN].replace(
+                    "<If(PlayerParameter(4))>her<Else/>his</If>", "[his/her]")
+
+            while "─" in csvContents[j][DIALOGUE_COLUMN]:
+                csvContents[j][DIALOGUE_COLUMN] = csvContents[j][DIALOGUE_COLUMN].replace("─", "--")
+
+            while "â\u20AC€" in csvContents[j][DIALOGUE_COLUMN]:
+                csvContents[j][DIALOGUE_COLUMN] = csvContents[j][DIALOGUE_COLUMN].replace("â\u20ac€", "-")
+
+            while "<Highlight>ObjectParameter(1)</Highlight>" in csvContents[j][
+                DIALOGUE_COLUMN] or "<Split(<Highlight>ObjectParameter(1)</Highlight>, ,1)/>" in csvContents[j][
+                DIALOGUE_COLUMN]:
+                csvContents[j][DIALOGUE_COLUMN] = csvContents[j][2].replace(
+                    "<Split(<Highlight>ObjectParameter(1)</Highlight>, ,1)/>", "[WARRIOR OF LIGHT]")
+                csvContents[j][DIALOGUE_COLUMN] = csvContents[j][2].replace("<Highlight>ObjectParameter(1)</Highlight>",
+                                                                            "[WARRIOR OF LIGHT]")
+
+            while "<Emphasis>" in csvContents[j][DIALOGUE_COLUMN] or "</Emphasis>" in csvContents[j][DIALOGUE_COLUMN]:
+                csvContents[j][DIALOGUE_COLUMN] = csvContents[j][2].replace("<Emphasis>", "*")
+                csvContents[j][DIALOGUE_COLUMN] = csvContents[j][2].replace("</Emphasis>", "*")
+
+            if "VOICEMAN" in csvContents[j][SPEAKER_COLUMN]:
+                textFormatter += "C>> "
+            else:
+                textFormatter += "Q>> "
+
+            textFormatter += csvContents[j][DIALOGUE_COLUMN] + "\n"
+            target.append(textFormatter)
+            resetStringBuilder(textFormatter)
 
 
-def characterLookup():
-    print("Welcome to my ffx|v dialogue scraper -- VERSION 1")
-    CHAR_NAME = input("What is the name of the character you wish to look up?\n")
-    return CHAR_NAME
+def resetStringBuilder_OLD(string_builder: str):
+    print("Reached string builder")
+    string_builder[0:string_builder.length()] = ""
 
 
-def reset_string_builder(string_builder):
-    string_builder.delete(0, string_builder.length())
-
-
-def contains_case_insensitive(s, s2):
-    s = s.upper()
-    s2 = s2.upper()
-    return s in s2
+def resetStringBuilder(string_builder):
+    string_builder = ""
 
 
 def writeToFile(finalizedText):
-    # TODO: Change this to the proper file locations.
     pathname = os.path.join(basePath, "output",
-                            CHAR_NAME.upper() + "_dialogue.txt")
+                            CHAR_NAME.upper() + "_dialogueABRIDGED.txt")
     try:
         with open(pathname, 'w', encoding='utf-8') as file:
             file.write(finalizedText)
@@ -189,11 +179,18 @@ def extendedMakeCsvFileList():
 
     return returnStringArray
 
+
+def characterLookup():
+    print("Welcome to my ffx|v dialogue scraper -- VERSION 2")
+    CHAR_NAME = input("What is the name of the character you wish to look up?\n")
+    return CHAR_NAME
+
+
 def main():
     print("Loading CSV files...")
     csvFileList = extendedMakeCsvFileList()
 
-    print("Loading all dialogue...\n")
+    print("Loading all dialogue...")
 
     global CHAR_NAME
     if useScanner:
