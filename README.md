@@ -1,7 +1,7 @@
 
 <h1 align="center">XIV Dialogue Inspector - Python Version </h1> 
 <p align="center"> 
-  <img src="pythonimg.png" alt="alt text" width="600">
+  <img src="pythonimg.png" alt="alt text" width="900">
 </p>
 
 This is the Python version of the XIV Dialogue Inspector, a program that allows you to easily access the dialogue files of Final Fantasy 14. This version was created to make the program more accessible to users who are more comfortable with Python.
